@@ -48,8 +48,11 @@ def print_song_list(update, context):
 
 
 def add_song(update, context):
-    SONGLIST.add_song_to_list(context.args[0], update.message.chat_id)
-    update.message.reply_text('успешно')
+    if context.args:
+        SONGLIST.add_song_to_list(context.args[0], update.message.chat_id)
+        update.message.reply_text('успешно')
+    else:
+        update.message.reply_text('Пожалуйста, введите название песни')
 
 
 def link(update, context):
@@ -89,6 +92,7 @@ def main():
     dp.add_handler(CommandHandler("print_songs", print_song_list))
 
     dp.add_handler(MessageHandler(Filters.text, echo))
+
     updater.start_polling()
     updater.idle()
 

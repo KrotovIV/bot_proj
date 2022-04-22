@@ -3,6 +3,7 @@ import json
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
 from telegram.ext import Updater, MessageHandler, Filters
+from yandex_music import Client
 
 TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
 
@@ -40,7 +41,26 @@ class Song_List:
         return dict[str(chat_id)] if str(chat_id) in dict.keys() else 'Пусто'
 
 
+class Search:
+    def __init__(self):
+        pass
+
+    def search(self, name):
+        search_result = client.search(name).to_json()
+        search_result = json.loads(search_result)
+        for elem in search_result.keys():
+            print(f"{elem} - {search_result[elem]}")
+        artist_name = search_result['best']['result']['artists'][0]['name']
+        song_name = search_result['best']['result']['title']
+
+
+
+
+
+
 SONGLIST = Song_List()
+SEARCH = Search()
+client = Client()
 
 
 def print_song_list(update, context):
@@ -66,7 +86,8 @@ def echo(update, context):
     elif update.message.text == '.Создать ссылку на плейлист':
         link(update, context)
     else:
-        update.message.reply_text(update.message.text)
+        SEARCH.search(update.message.text)
+        update.message.reply_text('ok')
 
 
 def start(update, context):

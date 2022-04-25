@@ -52,10 +52,9 @@ class Search:
             print(f"{elem} - {search_result[elem]}")
         artist_name = search_result['best']['result']['artists'][0]['name']
         song_name = search_result['best']['result']['title']
-
-
-
-
+        print(artist_name, song_name)
+        links = client.tracks_download_info(search_result['best']['result']['id'])
+        print(links)
 
 
 SONGLIST = Song_List()

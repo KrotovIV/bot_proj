@@ -1,9 +1,9 @@
 import json
 
+import yandex_music
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
 from telegram.ext import Updater, MessageHandler, Filters
-from yandex_music import Client
 
 TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
 
@@ -29,7 +29,8 @@ class Song_List:
         with open(self.filename, 'r') as file:
             dict = json.load(file)
         if str(chat_id) in dict.keys():
-            dict[str(chat_id)].append(name)
+            if name not in dict[str(chat_id)]:
+                dict[str(chat_id)].append(name)
         else:
             dict[str(chat_id)] = [name]
         with open(self.filename, 'w') as file:
@@ -45,30 +46,43 @@ class Search:
     def __init__(self):
         pass
 
-    def search(self, name):
-        search_result = client.search(name).to_json()
-        search_result = json.loads(search_result)
-        for elem in search_result.keys():
-            print(f"{elem} - {search_result[elem]}")
-        artist_name = search_result['best']['result']['artists'][0]['name']
-        song_name = search_result['best']['result']['title']
-        print(artist_name, song_name)
-        links = client.tracks_download_info(search_result['best']['result']['id'])
-        print(links)
+    def search(self, name, chat_id):
+        search_result = json.loads(client.search(name).to_json())
+        track_id = search_result['best']['result']['id_']
+        album_id = search_result['best']['result']['albums'][0]['id_']
+        inf = client.tracks_download_info(track_id)[0]
+        client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'], bitrate_in_kbps=inf['bitrate_in_kbps'])
+
+        try:
+            artist_name = search_result['best']['result']['artists'][0]['name']
+            song_name = search_result['best']['result']['title']
+            print(artist_name, song_name)
+            return f"{artist_name} - {song_name}"
+        except KeyError:
+            return "Такую песню я не знаю"
+        except TypeError:
+            return "Такую песню я не знаю"
+        # links = client.tracks_download_info(search_result['best']['result']['id'])
+        # print(links)
 
 
 SONGLIST = Song_List()
 SEARCH = Search()
-client = Client()
+client = yandex_music.Client()
 
 
 def print_song_list(update, context):
-    update.message.reply_text(SONGLIST.get_song_list(update.message.chat_id))
+    spisok = SONGLIST.get_song_list(update.message.chat_id)
+    spisok = list(enumerate(spisok, start=1))
+    spisok = list(map(lambda x: f'{x[0]} - {x[1]}', spisok))
+    spisok = '\n'.join(spisok)
+    update.message.reply_text(spisok)
 
 
 def add_song(update, context):
     if context.args:
-        SONGLIST.add_song_to_list(context.args[0], update.message.chat_id)
+        name = ' '.join(context.args)
+        SONGLIST.add_song_to_list(name, update.message.chat_id)
         update.message.reply_text('успешно')
     else:
         update.message.reply_text('Пожалуйста, введите название песни')
@@ -85,8 +99,12 @@ def echo(update, context):
     elif update.message.text == '.Создать ссылку на плейлист':
         link(update, context)
     else:
-        SEARCH.search(update.message.text)
-        update.message.reply_text('ok')
+        if not update.message.text[0] == '/':
+            name = SEARCH.search(update.message.text, update.message.chat_id)
+            with open(f'tracks/{update.message.chat_id}.mp3', 'rb') as r:
+                update.message.reply_text(name)
+                update.message.reply_voice(r)
+
 
 
 def start(update, context):

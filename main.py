@@ -18,6 +18,8 @@ delete_markup = ReplyKeyboardMarkup(delete_keyboard, one_time_keyboard=False)
 modes = {}  # 0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке
 users_data = {}
 
+YANDEX_TOKEN = 'AQAAAABFn9XwAAG8XpXLLwrUT0RRlhygDi0DdUM'
+
 
 class Song_List:
     def __init__(self):
@@ -63,6 +65,8 @@ class Search:
         inf = client.tracks_download_info(track_id)[0]
         client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'],
                                                             bitrate_in_kbps=inf['bitrate_in_kbps'])
+        for elem in search_result.keys():
+            print(search_result[elem])
 
         try:
             artist_name = search_result['best']['result']['artists'][0]['name']
@@ -77,7 +81,7 @@ class Search:
 
 SONGLIST = Song_List()
 SEARCH = Search()
-client = yandex_music.Client()
+client = yandex_music.Client(YANDEX_TOKEN)
 
 
 def delete_song_from_list(update, chat_id, name):

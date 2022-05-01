@@ -3,7 +3,7 @@ import json
 import yandex_music
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
-from telegram.ext import Updater, MessageHandler, Filters, ConversationHandler
+from telegram.ext import Updater, MessageHandler, Filters
 
 TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
 
@@ -15,21 +15,16 @@ start_markup = ReplyKeyboardMarkup(start_keyboard, one_time_keyboard=False)
 add_markup = ReplyKeyboardMarkup(add_keyboard, one_time_keyboard=False)
 delete_markup = ReplyKeyboardMarkup(delete_keyboard, one_time_keyboard=False)
 
-modes = {} #0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке
+modes = {}  # 0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке
 users_data = {}
+
+
 class Song_List:
     def __init__(self):
         self.filename = 'data.json'
 
     def create_deep_link(self, chat_id):
         return f'https://t.me/krotow_bot?start=playlist_user_id_{chat_id}'
-
-    def open_deep_link(self, link):
-        chat_id = link[17:]
-        with open(self.filename, 'r') as file:
-            dict = json.load(file)
-        if str(chat_id) in dict.keys():
-            return dict[str(chat_id)]
 
     def add_song_to_list(self, name: str, chat_id: int):
         with open(self.filename, 'r') as file:
@@ -66,11 +61,13 @@ class Search:
         track_id = search_result['best']['result']['id_']
         album_id = search_result['best']['result']['albums'][0]['id_']
         inf = client.tracks_download_info(track_id)[0]
-        client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'], bitrate_in_kbps=inf['bitrate_in_kbps'])
+        client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'],
+                                                            bitrate_in_kbps=inf['bitrate_in_kbps'])
 
         try:
             artist_name = search_result['best']['result']['artists'][0]['name']
             song_name = search_result['best']['result']['title']
+            print(artist_name, song_name)
             return artist_name, song_name
         except KeyError:
             return "Такую песню я не знаю"
@@ -82,6 +79,7 @@ SONGLIST = Song_List()
 SEARCH = Search()
 client = yandex_music.Client()
 
+
 def delete_song_from_list(update, chat_id, name):
     SONGLIST.delete_song(chat_id, name)
     update.message.reply_text('Успешно', reply_markup=start_markup)
@@ -89,9 +87,11 @@ def delete_song_from_list(update, chat_id, name):
     modes[chat_id] = 0
     users_data[chat_id]['last'] = ''
 
-def print_song_list(update):
-    spisok = SONGLIST.get_song_list(update.message.chat_id)
-    print(spisok)
+
+def print_song_list(update, chat_id=None):
+    if not chat_id:
+        chat_id = update.message.chat_id
+    spisok = SONGLIST.get_song_list(chat_id)
     if spisok == 'Пусто':
         update.message.reply_text(spisok, reply_markup=start_markup)
     else:
@@ -99,19 +99,25 @@ def print_song_list(update):
         spisok = list(map(lambda x: f'{x[0]} - {x[1]}', spisok))
         spisok = '\n'.join(spisok)
         update.message.reply_text(spisok, reply_markup=start_markup)
-        global modes
+        global modes, users_data
         modes[update.message.chat_id] = 1
+        if chat_id != update.message.chat_id:
+            spisok = SONGLIST.get_song_list(chat_id)
+            users_data[update.message.chat_id]['playlist_link'] = spisok
 
 
 def link(update, context):
     link_ = SONGLIST.create_deep_link(update.message.chat_id)
     update.message.reply_text(link_)
 
+
 def add_song(update, name):
     SONGLIST.add_song_to_list(name, update.message.chat_id)
     update.message.reply_text('успешно', reply_markup=start_markup)
 
+
 def echo(update, context):
+    global modes
     global users_data
     if update.message.text == '.Показать ваш плейлист':
         print_song_list(update)
@@ -141,18 +147,35 @@ def echo(update, context):
             else:
                 modes[update.message.chat_id] = 0
                 play_song(update, update.message.text)
+        elif modes[update.message.chat_id] == 2:
+            if update.message.text.isnumeric():
+                if 'playlist_link' in users_data[update.message.chat_id].keys():
+                    spisok = users_data[update.message.chat_id]['playlist_link']
+                    name = get_name_by_num(update, update.message.text, spisok)
+                    if name:
+                        play_song(update, name, spisok)
+                    else:
+                        update.message.reply_text("Неправильный номер")
+            else:
+                modes[update.message.chat_id] = 0
+                play_song(update, update.message.text)
 
 
-def get_name_by_num(update, num):
-    spisok = SONGLIST.get_song_list(update.message.chat_id)
-    if num.isnumeric() and 0 < int(num) <= len(spisok):
+def get_name_by_num(update, num, spisok=None):
+    if not spisok:
+        spisok = SONGLIST.get_song_list(update.message.chat_id)
+    print(num, spisok)
+    if 0 < int(num) <= len(spisok):
+        print(spisok[int(num) - 1])
         return spisok[int(num) - 1]
 
-def play_song(update, name):
+
+def play_song(update, name, spisok=None):
     name = SEARCH.search(name, update.message.chat_id)
     name = f"{name[0]} - {name[1]}"
     with open(f'tracks/{update.message.chat_id}.mp3', 'rb') as r:
-        spisok = SONGLIST.get_song_list(update.message.chat_id)
+        if not spisok:
+            spisok = SONGLIST.get_song_list(update.message.chat_id)
         if name not in spisok:
             update.message.reply_text(name, reply_markup=add_markup)
         elif spisok != 'Пусто' and name in spisok:
@@ -164,32 +187,25 @@ def play_song(update, name):
     # if users_data[update.message.chat_id]['playlist'] == 'self':
     #     print_song_list(update)
 
+
 def start(update, context):
     global modes, users_data
     modes[update.message.chat_id] = 0
     users_data[update.message.chat_id] = {'last': '', 'playlist': 'self'}
     if context.args:
         if "playlist_user_id" in context.args[0]:
-            spisok = SONGLIST.open_deep_link(context.args[0])
-            if spisok:
-                spisok = list(enumerate(spisok, start=1))
-                spisok = list(map(lambda x: f'{x[0]} - {x[1]}', spisok))
-                spisok = '\n'.join(spisok)
-                update.message.reply_text(spisok, reply_markup=start_markup)
-                users_data[update.message.chat_id]['playlist'] = 'link'
-            else:
-                update.message.reply_text("Такого пользователя нет", reply_markup=start_markup)
-
+            chat_id_ = context.args[0][17:]
+            print_song_list(update, chat_id_)
+            users_data[update.message.chat_id]['playlist'] = 'link'
+            modes[update.message.chat_id] = 2
     else:
         update.message.reply_text("Это Музыкальный бот. Напишите название песни", reply_markup=start_markup)
-
 
 
 def main():
     updater = Updater(TOKEN, use_context=True)
 
     dp = updater.dispatcher
-
 
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("print_songs", print_song_list))

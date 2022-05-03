@@ -9,8 +9,8 @@ from telegram.ext import Updater, MessageHandler, Filters
 TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
 
 start_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['.'], ['.']]
-add_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['.Добавить в плейлист'], ['.']]
-delete_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['.Удалить из плейлиста'], ['.']]
+add_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['✅Добавить в плейлист✅'], ['.']]
+delete_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['❌Удалить из плейлиста❌'], ['.']]
 
 start_markup = ReplyKeyboardMarkup(start_keyboard, one_time_keyboard=False)
 add_markup = ReplyKeyboardMarkup(add_keyboard, one_time_keyboard=False)
@@ -64,18 +64,14 @@ class Search:
     def search(self, name, chat_id):
         search_result = json.loads(client.search(name).to_json())
         track_id = search_result['best']['result']['id_']
-        print(search_result['best']['result']['albums'])
         album_id = search_result['best']['result']['albums'][0]['id_']
         inf = client.tracks_download_info(track_id)[0]
         client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'],
                                                             bitrate_in_kbps=inf['bitrate_in_kbps'])
-        for elem in search_result.keys():
-            print(search_result[elem])
 
         try:
             artist_name = search_result['best']['result']['artists'][0]['name']
             song_name = search_result['best']['result']['title']
-            print(artist_name, song_name)
             return artist_name, song_name
         except KeyError:
             return "Такую песню я не знаю"
@@ -141,16 +137,16 @@ def top10(context: telegram.ext.CallbackContext):
 
 
 def echo(update, context):
+    print(update.message.text)
     global modes
     global users_data
-    print(modes[update.message.chat_id])
     if update.message.text == '.Показать ваш плейлист':
         print_song_list(update)
-    elif update.message.text == '.Добавить в плейлист':
+    elif update.message.text == '✅Добавить в плейлист✅':
         name = users_data[update.message.chat_id]['last']
 
         add_song(update, name)
-    elif update.message.text == '.Удалить из плейлиста':
+    elif update.message.text == '❌Удалить из плейлиста❌':
         name = users_data[update.message.chat_id]['last']
         delete_song_from_list(update, update.message.chat_id, name)
     elif update.message.text == '.Создать ссылку на плейлист':
@@ -200,9 +196,7 @@ def echo(update, context):
 def get_name_by_num(update, num, spisok=None):
     if not spisok:
         spisok = SONGLIST.get_song_list(update.message.chat_id)
-    print(num, spisok)
     if 0 < int(num) <= len(spisok):
-        print(spisok[int(num) - 1])
         return spisok[int(num) - 1]
 
 

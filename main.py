@@ -16,7 +16,9 @@ start_markup = ReplyKeyboardMarkup(start_keyboard, one_time_keyboard=False)
 add_markup = ReplyKeyboardMarkup(add_keyboard, one_time_keyboard=False)
 delete_markup = ReplyKeyboardMarkup(delete_keyboard, one_time_keyboard=False)
 
-modes = {}  # 0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке
+charts = []
+
+modes = {}  # 0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке, 3 - режим выбора из чарта
 users_data = {}
 
 YANDEX_TOKEN = 'AQAAAABFn9XwAAG8XpXLLwrUT0RRlhygDi0DdUM'
@@ -123,22 +125,25 @@ def add_song(update, name):
 
 
 def top10(context: telegram.ext.CallbackContext):
+    global charts, modes
     with open('users.json', 'r') as file:
         chat_ids = json.load(file)['users']
 
     spisok = list(map(lambda x: f"{x['track']['artists'][0]['name']}  -  {x['track']['title']}",
                       client.chart()['chart']['tracks'][:10]))
+    charts = spisok.copy()
     spisok = list(map(lambda x: f"{x[0] + 1} - {x[1]}", list(enumerate(spisok))))
     spisok.insert(0, f'🔥 TOP 🔟 🔥')
     spisok = '\n'.join(spisok)
-    print(users_data)
     for elem in chat_ids:
         context.bot.send_message(chat_id=elem, text=spisok)
+        modes[int(elem)] = 3
 
 
 def echo(update, context):
     global modes
     global users_data
+    print(modes[update.message.chat_id])
     if update.message.text == '.Показать ваш плейлист':
         print_song_list(update)
     elif update.message.text == '.Добавить в плейлист':
@@ -176,6 +181,17 @@ def echo(update, context):
                         play_song(update, name, spisok)
                     else:
                         update.message.reply_text("Неправильный номер")
+            else:
+                modes[update.message.chat_id] = 0
+                play_song(update, update.message.text)
+        elif modes[update.message.chat_id] == 3:
+            if update.message.text.isnumeric():
+                global charts
+                name = get_name_by_num(update, update.message.text, charts)
+                if name:
+                    play_song(update, name, charts)
+                else:
+                    update.message.reply_text("Неправильный номер")
             else:
                 modes[update.message.chat_id] = 0
                 play_song(update, update.message.text)
@@ -229,6 +245,13 @@ def start(update, context):
 
 
 def main():
+    global modes
+    with open('users.json', 'r') as file:
+        users_ids = json.load(file)['users']
+    for id in users_ids:
+        modes[int(id)] = 0
+        users_data[int(id)] = {'last': '', 'playlist': 'self'}
+
     updater = Updater(TOKEN, use_context=True)
 
     dp = updater.dispatcher
@@ -240,7 +263,7 @@ def main():
 
     interval = 60 * 60 * 24 * 7  # неделя
 
-    updater.job_queue.run_repeating(top10, 1)
+    updater.job_queue.run_repeating(top10, interval)
 
     updater.start_polling()
     updater.idle()

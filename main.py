@@ -1,5 +1,6 @@
 import json
 
+import telegram
 import yandex_music
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
@@ -61,6 +62,7 @@ class Search:
     def search(self, name, chat_id):
         search_result = json.loads(client.search(name).to_json())
         track_id = search_result['best']['result']['id_']
+        print(search_result['best']['result']['albums'])
         album_id = search_result['best']['result']['albums'][0]['id_']
         inf = client.tracks_download_info(track_id)[0]
         client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'],
@@ -118,6 +120,20 @@ def link(update, context):
 def add_song(update, name):
     SONGLIST.add_song_to_list(name, update.message.chat_id)
     update.message.reply_text('успешно', reply_markup=start_markup)
+
+
+def top10(context: telegram.ext.CallbackContext):
+    with open('users.json', 'r') as file:
+        chat_ids = json.load(file)['users']
+
+    spisok = list(map(lambda x: f"{x['track']['artists'][0]['name']}  -  {x['track']['title']}",
+                      client.chart()['chart']['tracks'][:10]))
+    spisok = list(map(lambda x: f"{x[0] + 1} - {x[1]}", list(enumerate(spisok))))
+    spisok.insert(0, f'🔥 TOP 🔟 🔥')
+    spisok = '\n'.join(spisok)
+    print(users_data)
+    for elem in chat_ids:
+        context.bot.send_message(chat_id=elem, text=spisok)
 
 
 def echo(update, context):
@@ -188,12 +204,18 @@ def play_song(update, name, spisok=None):
         update.message.reply_voice(r)
     global users_data
     users_data[update.message.chat_id]['last'] = name
-    # if users_data[update.message.chat_id]['playlist'] == 'self':
-    #     print_song_list(update)
 
 
 def start(update, context):
+    with open('users.json', 'r') as file:
+        dict = json.load(file)
+    if str(update.message.chat_id) not in dict['users']:
+        dict['users'].append(str(update.message.chat_id))
+        with open('users.json', 'w') as file:
+            json.dump(dict, file, ensure_ascii=False)
+
     global modes, users_data
+
     modes[update.message.chat_id] = 0
     users_data[update.message.chat_id] = {'last': '', 'playlist': 'self'}
     if context.args:
@@ -215,6 +237,10 @@ def main():
     dp.add_handler(CommandHandler("print_songs", print_song_list))
 
     dp.add_handler(MessageHandler(Filters.text, echo))
+
+    interval = 60 * 60 * 24 * 7  # неделя
+
+    updater.job_queue.run_repeating(top10, 1)
 
     updater.start_polling()
     updater.idle()

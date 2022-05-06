@@ -1,7 +1,9 @@
 import json
 
+import requests
 import telegram
 import yandex_music
+from bs4 import BeautifulSoup
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
 from telegram.ext import Updater, MessageHandler, Filters
@@ -9,8 +11,10 @@ from telegram.ext import Updater, MessageHandler, Filters
 TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
 
 start_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['.'], ['.']]
-add_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['✅Добавить в плейлист✅'], ['.']]
-delete_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['❌Удалить из плейлиста❌'], ['.']]
+add_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['✅Добавить в плейлист✅'],
+                ['.Показать текст']]
+delete_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['❌Удалить из плейлиста❌'],
+                   ['.Показать текст']]
 
 start_markup = ReplyKeyboardMarkup(start_keyboard, one_time_keyboard=False)
 add_markup = ReplyKeyboardMarkup(add_keyboard, one_time_keyboard=False)
@@ -62,9 +66,7 @@ class Search:
         pass
 
     def search(self, name, chat_id):
-        search_result = json.loads(client.search(name).to_json())
-        track_id = search_result['best']['result']['id_']
-        album_id = search_result['best']['result']['albums'][0]['id_']
+        track_id, album_id, search_result = self.get_ides(name)
         inf = client.tracks_download_info(track_id)[0]
         client.tracks(f'{track_id}:{album_id}')[0].download(f'tracks/{chat_id}.mp3', codec=inf['codec'],
                                                             bitrate_in_kbps=inf['bitrate_in_kbps'])
@@ -77,6 +79,12 @@ class Search:
             return "Такую песню я не знаю"
         except TypeError:
             return "Такую песню я не знаю"
+
+    def get_ides(self, name):
+        search_result = json.loads(client.search(name).to_json())
+        track_id = search_result['best']['result']['id_']
+        album_id = search_result['best']['result']['albums'][0]['id_']
+        return track_id, album_id, search_result
 
 
 SONGLIST = Song_List()
@@ -142,6 +150,13 @@ def echo(update, context):
     global users_data
     if update.message.text == '.Показать ваш плейлист':
         print_song_list(update)
+    elif update.message.text == '.Показать текст':
+        name = users_data[update.message.chat_id]['last']
+        response = SEARCH.get_ides(name)
+        track_id, album_id = response[0], response[1]
+        lyrics = get_text(track_id, album_id)
+        update.message.reply_text(lyrics)
+
     elif update.message.text == '✅Добавить в плейлист✅':
         name = users_data[update.message.chat_id]['last']
 
@@ -216,6 +231,18 @@ def play_song(update, name, spisok=None):
     users_data[update.message.chat_id]['last'] = name
 
 
+def get_text(trackid, albumid):
+    url = f'https://music.yandex.ru/album/{albumid}/track/{trackid}'
+    html = requests.get(url).text
+    soupObj = BeautifulSoup(html)
+    lyrics = soupObj.find('div', attrs={"class": "sidebar-track__lyric-text"}).text
+    return lyrics
+
+
+def test_top10(update, context):
+    top10(context)
+
+
 def start(update, context):
     with open('users.json', 'r') as file:
         dict = json.load(file)
@@ -251,7 +278,8 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("print_songs", print_song_list))
+
+    dp.add_handler(CommandHandler("top10", test_top10))
 
     dp.add_handler(MessageHandler(Filters.text, echo))
 

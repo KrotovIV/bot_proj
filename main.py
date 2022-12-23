@@ -8,7 +8,7 @@ from telegram import ReplyKeyboardMarkup
 from telegram.ext import CommandHandler
 from telegram.ext import Updater, MessageHandler, Filters
 
-TOKEN = '5235499125:AAEIV0Xurji0IJTAnPUTWYx7u8z_sFtzb3U'
+TOKEN = '##############################'
 
 start_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['.'], ['.']]
 add_keyboard = [['.Показать ваш плейлист'], ['.Создать ссылку на плейлист'], ['✅Добавить в плейлист✅'],
@@ -25,7 +25,7 @@ charts = []
 modes = {}  # 0 - обычный, 1 - режим выбора, 2 - режим выбора из альбома по сслыке, 3 - режим выбора из чарта
 users_data = {}
 
-YANDEX_TOKEN = 'AQAAAABFn9XwAAG8XpXLLwrUT0RRlhygDi0DdUM'
+YANDEX_TOKEN = '##############################'
 
 
 class Song_List:
